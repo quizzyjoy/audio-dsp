@@ -1,0 +1,24 @@
+{
+  "name": "@quizzyjoy/audio-dsp",
+  "version": "0.1.0",
+  "description": "Real-time audio DSP for HarmonyOS: FFT spectrum, waveform envelope, RMS/peak. Native NAPI, no decoding or playback.",
+  "main": "Index.ets",
+  "author": {
+    "name": "河南趣知易解互联网科技有限公司",
+    "email": "opensource@quizzyjoy.com",
+    "url": "https://quizzyjoy.com"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/quizzyjoy/audio-dsp",
+  "repository": "https://github.com/quizzyjoy/audio-dsp",
+  "bugs": "https://github.com/quizzyjoy/audio-dsp/issues",
+  "keywords": ["audio", "dsp", "fft", "spectrum", "waveform", "harmonyos", "ohos"],
+  "compatibleSdkVersion": "12",
+  "compatibleSdkType": "HarmonyOS",
+  "nativeComponents": [
+    { "name": "libc++_shared.so", "compatibleSdkVersion": "12", "compatibleSdkType": "HarmonyOS" }
+  ],
+  "dependencies": {
+    "libaudio_dsp.so": "file:./src/main/cpp/types/libaudio_dsp"
+  }
+}

@@ -1,0 +1,20 @@
+# build / toolchain
+harmony/.hvigor/
+harmony/.cxx/
+harmony/**/build/
+harmony/**/.cxx/
+harmony/**/oh_modules/
+harmony/oh_modules/
+harmony/local.properties
+harmony/**/*.har
+harmony/**/*.hap
+
+# editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# node
+node_modules/
+*.log
