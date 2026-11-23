@@ -59,6 +59,17 @@ audio-dsp/
 2. File → Project Structure → Signing Configs → 勾选 **Automatically generate signature**
 3. 选中 `entry` → Run
 
+运行方式（命令行，无线真机）：
+
+```bash
+devecocli auth login            # 华为开发者账号（浏览器授权一次）
+devecocli signature generate    # 生成调试证书/Profile，写入 harmony/build-profile.json5
+devecocli run --device <serial> --module entry   # 构建 + 签名 + 安装 + 拉起
+devecocli ui screenshot --device <serial> --path shot.png
+```
+
+签名材料落在 `~/.ohos/config/`，`harmony/build-profile.json5` 里的 `signingConfigs` 含本机路径与凭据，**不入库**（已用 `git update-index --skip-worktree harmony/build-profile.json5` 排除，换机重新 `signature generate` 即可）。
+
 命令行构建（HAR）：见上文；命令行构建 HAP 需要本机签名配置。
 
 ## 测试

@@ -168,7 +168,7 @@ struct Index {
             .height(8 + value * 150)
             .borderRadius(3)
             .backgroundColor(this.barColor(index))
-        }, (value: number, index: number) => index.toString())
+        }, (value: number, index: number) => `${index}-${value.toFixed(4)}`)
       }
       .width('100%')
       .height(170)
@@ -182,7 +182,7 @@ struct Index {
             .width(3)
             .height(2 + value * 70)
             .backgroundColor('#64748B')
-        }, (value: number, index: number) => index.toString())
+        }, (value: number, index: number) => `${index}-${value.toFixed(4)}`)
       }
       .width('100%')
       .height(80)
@@ -191,11 +191,11 @@ struct Index {
 
       // ---- readouts ----
       Row({ space: 24 }) {
-        this.readout('freq', `${this.frequency.toFixed(0)} Hz`)
-        this.readout('rms', this.rmsText)
-        this.readout('peak', this.peakText)
-        this.readout('peak band', this.peakBandText)
-        this.readout('frames/s', this.frameCount.toString())
+        Readout({ label: 'freq', value: `${this.frequency.toFixed(0)} Hz` })
+        Readout({ label: 'rms', value: this.rmsText })
+        Readout({ label: 'peak', value: this.peakText })
+        Readout({ label: 'peak band', value: this.peakBandText })
+        Readout({ label: 'frames/s', value: this.frameCount.toString() })
       }
       .width('100%')
       .margin({ top: 14, bottom: 8 })
@@ -252,13 +252,23 @@ struct Index {
     .backgroundColor('#0B1020')
   }
 
-  @Builder
-  readout(label: string, value: string) {
+}
+
+/**
+ * One metric readout. A @Component with @Prop (not a @Builder with value
+ * parameters) so the text re-renders when the value changes.
+ */
+@Component
+struct Readout {
+  @Prop label: string = '';
+  @Prop value: string = '';
+
+  build() {
     Column() {
-      Text(label)
+      Text(this.label)
         .fontSize(10)
         .fontColor('#64748B')
-      Text(value)
+      Text(this.value)
         .fontSize(14)
         .fontColor('#E2E8F0')
         .margin({ top: 2 })
