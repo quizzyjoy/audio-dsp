@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- 频带拆分（bass/mid/treble，交叉点可配）、`SpectrumFrame`。
+- 50% 重叠窗口（帧率翻倍）。
+- `rmsDb` / `peakDb` / `linearToDb` / `topPeaks`。
+- demo：BASS/MID/TREBLE 电平条、重叠开关。
+- Hypium 新增 6 个用例（拆分、重叠、dB、topPeaks）。
+
 ## [0.1.1] - 2026-10-21
 
 ### Added

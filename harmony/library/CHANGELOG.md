@@ -3,6 +3,16 @@
 All notable changes are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: [SemVer](https://semver.org/).
 
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- 频带拆分：`pushFrame()` 一次返回 `bands` + `bass` / `mid` / `treble`（交叉点可配，默认 250 Hz / 2 kHz）。
+- `SpectrumFrame` 类型：`bands`、`bass`、`mid`、`treble`。
+- 50% 重叠窗口：`overlap: 50`，帧率翻倍、频谱更平滑。
+- 电平工具：`rmsDb()`、`peakDb()`、`linearToDb()`；峰值定位 `topPeaks()`。
+- demo 增加 BASS/MID/TREBLE 电平条与「50% 重叠」开关。
+
 ## [0.1.1] - 2026-10-21
 
 ### Added

@@ -19,6 +19,10 @@ struct Index {
   @State peakBandText: string = '-';
   @State frameCount: number = 0;
   @State selfTestText: string = '—';
+  @State bass: number = 0;
+  @State mid: number = 0;
+  @State treble: number = 0;
+  @State overlap: boolean = false;
 
   private analyzer: SpectrumAnalyzer = new SpectrumAnalyzer({
     fftSize: FFT_SIZE,
@@ -91,13 +95,14 @@ struct Index {
       }
     }
 
-    const frame = this.analyzer.push(pcm);
+    const frame = this.analyzer.pushFrame(pcm);
     if (frame !== null) {
       const next: number[] = [];
       let peakBand = 0;
       let peakValue = 0;
-      for (let i = 0; i < frame.length; i++) {
-        const v = frame[i];
+      const values = frame.bands;
+      for (let i = 0; i < values.length; i++) {
+        const v = values[i];
         next.push(v);
         if (v > peakValue) {
           peakValue = v;
@@ -105,7 +110,10 @@ struct Index {
         }
       }
       this.bands = next;
-      this.peakBandText = `${peakBand} / ${frame.length}`;
+      this.peakBandText = `${peakBand} / ${values.length}`;
+      this.bass = frame.bass;
+      this.mid = frame.mid;
+      this.treble = frame.treble;
       this.frames++;
     }
 
@@ -127,6 +135,16 @@ struct Index {
       this.lastFrames = this.frames;
       this.lastTick = now;
     }
+  }
+
+  private rebuildAnalyzer(): void {
+    this.analyzer.release();
+    this.analyzer = new SpectrumAnalyzer({
+      fftSize: FFT_SIZE,
+      sampleRate: SAMPLE_RATE,
+      bands: BAND_COUNT,
+      overlap: this.overlap ? 50 : 0
+    });
   }
 
   private barColor(index: number): ResourceColor {
@@ -200,6 +218,14 @@ struct Index {
       .width('100%')
       .margin({ top: 14, bottom: 8 })
 
+      Row({ space: 12 }) {
+        Meter({ label: 'BASS', value: this.bass, color: '#F472B6' })
+        Meter({ label: 'MID', value: this.mid, color: '#60A5FA' })
+        Meter({ label: 'TREBLE', value: this.treble, color: '#22D3EE' })
+      }
+      .width('100%')
+      .margin({ bottom: 8 })
+
       // ---- controls ----
       Row({ space: 10 }) {
         Text('频率')
@@ -222,6 +248,19 @@ struct Index {
           .fontColor('#E2E8F0')
           .width(70)
           .textAlign(TextAlign.End)
+      }
+      .width('100%')
+      .margin({ top: 6 })
+
+      Row({ space: 10 }) {
+        Text('50% 重叠')
+          .fontSize(13)
+          .fontColor('#CBD5E1')
+        Toggle({ type: ToggleType.Switch, isOn: this.overlap })
+          .onChange((isOn: boolean) => {
+            this.overlap = isOn;
+            this.rebuildAnalyzer();
+          })
       }
       .width('100%')
       .margin({ top: 6 })
@@ -274,5 +313,44 @@ struct Readout {
         .margin({ top: 2 })
     }
     .alignItems(HorizontalAlign.Start)
+  }
+}
+
+/**
+ * Bass / mid / treble level meter (0..1) with a thin bar.
+ */
+@Component
+struct Meter {
+  @Prop label: string = '';
+  @Prop value: number = 0;
+  @Prop color: string = '#60A5FA';
+
+  build() {
+    Column() {
+      Row() {
+        Text(this.label)
+          .fontSize(10)
+          .fontColor('#64748B')
+        Blank()
+        Text(this.value.toFixed(2))
+          .fontSize(11)
+          .fontColor('#E2E8F0')
+      }
+      .width('100%')
+
+      Row() {
+        Column()
+          .width(`${Math.round(this.value * 100)}%`)
+          .height(6)
+          .borderRadius(3)
+          .backgroundColor(this.color)
+      }
+      .width('100%')
+      .height(6)
+      .borderRadius(3)
+      .backgroundColor('#1E293B')
+      .margin({ top: 4 })
+    }
+    .layoutWeight(1)
   }
 }

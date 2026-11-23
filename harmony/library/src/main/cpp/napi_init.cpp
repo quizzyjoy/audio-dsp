@@ -47,7 +47,9 @@ napi_value MakeFloat32Array(napi_env env, const float* values, size_t length) {
         napi_get_undefined(env, &undefined);
         return undefined;
     }
-    std::memcpy(bufferData, values, length * sizeof(float));
+    if (length > 0) {
+        std::memcpy(bufferData, values, length * sizeof(float));
+    }
 
     napi_value result = nullptr;
     if (napi_create_typedarray(env, napi_float32_array, length, arrayBuffer, 0, &result) != napi_ok) {
@@ -64,14 +66,22 @@ napi_value MakeNumber(napi_env env, double value) {
     return result;
 }
 
+void SetNumberProperty(napi_env env, napi_value object, const char* name, double value) {
+    napi_set_named_property(env, object, name, MakeNumber(env, value));
+}
+
 napi_value NativeCreateAnalyzer(napi_env env, napi_callback_info info) {
-    size_t argc = 3;
-    napi_value args[3] = {nullptr};
+    size_t argc = 6;
+    napi_value args[6] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
     int32_t fftSize = 1024;
     int32_t sampleRate = 48000;
     int32_t bands = 32;
+    int32_t overlapPercent = 0;
+    double bassHz = 250.0;
+    double trebleHz = 2000.0;
+
     if (argc > 0) {
         napi_get_value_int32(env, args[0], &fftSize);
     }
@@ -81,8 +91,17 @@ napi_value NativeCreateAnalyzer(napi_env env, napi_callback_info info) {
     if (argc > 2) {
         napi_get_value_int32(env, args[2], &bands);
     }
+    if (argc > 3) {
+        napi_get_value_int32(env, args[3], &overlapPercent);
+    }
+    if (argc > 4) {
+        napi_get_value_double(env, args[4], &bassHz);
+    }
+    if (argc > 5) {
+        napi_get_value_double(env, args[5], &trebleHz);
+    }
 
-    auto* analyzer = new SpectrumAnalyzer(fftSize, sampleRate, bands);
+    auto* analyzer = new SpectrumAnalyzer(fftSize, sampleRate, bands, overlapPercent, bassHz, trebleHz);
     napi_value external = nullptr;
     if (napi_create_external(env, analyzer, FinalizeAnalyzer, nullptr, &external) != napi_ok) {
         delete analyzer;
@@ -94,8 +113,8 @@ napi_value NativeCreateAnalyzer(napi_env env, napi_callback_info info) {
 }
 
 napi_value NativePushFrame(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {nullptr};
+    size_t argc = 3;
+    napi_value args[3] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
     napi_value nullValue = nullptr;
@@ -115,10 +134,25 @@ napi_value NativePushFrame(napi_env env, napi_callback_info info) {
         return nullValue;
     }
 
-    std::vector<float> bands(128);
-    const int produced = analyzer->push(samples, length, bands.data());
+    std::vector<float> bands(128, 0.0f);
+    float split[3] = {0.0f, 0.0f, 0.0f};
+    const int produced = analyzer->push(samples, length, bands.data(), split);
     if (produced <= 0) {
         return nullValue;
+    }
+    if (argc > 2) {
+        napi_typedarray_type type;
+        napi_value arrayBuffer = nullptr;
+        void* raw = nullptr;
+        size_t byteOffset = 0;
+        size_t splitLength = 0;
+        if (napi_get_typedarray_info(env, args[2], &type, &splitLength, &raw, &arrayBuffer, &byteOffset) == napi_ok &&
+            type == napi_float32_array && raw != nullptr && splitLength >= 3) {
+            auto* out = static_cast<float*>(raw);
+            out[0] = split[0];
+            out[1] = split[1];
+            out[2] = split[2];
+        }
     }
     return MakeFloat32Array(env, bands.data(), static_cast<size_t>(produced));
 }

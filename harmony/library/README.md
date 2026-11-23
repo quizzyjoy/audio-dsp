@@ -20,7 +20,7 @@ ohpm install @quizzyjoy/audio-dsp
 
 | 成员 | 说明 |
 |---|---|
-| `constructor(options?: SpectrumOptions)` | `fftSize`(256–2048，默认 1024)、`sampleRate`(默认 48000)、`bands`(1–128，默认 32) |
+| `constructor(options?: SpectrumOptions)` | `fftSize`(256–2048，默认 1024)、`sampleRate`(默认 48000)、`bands`(1–128，默认 32)、`overlap`(0/50)、`bassHz`(默认 250)、`trebleHz`(默认 2000) |
 | `push(pcm: Int16Array): Float32Array \| null` | 喂入单声道 S16LE 样本；攒满一窗返回一帧频带能量（0..1），否则 `null` |
 | `reset(): void` | 清空缓冲与平滑状态 |
 | `release(): void` | 释放 native 资源 |
@@ -32,6 +32,8 @@ ohpm install @quizzyjoy/audio-dsp
 |---|---|
 | `computeWaveform(pcm, points): Float32Array` | 返回 `2 * points` 个值 `[min0,max0,...]`，范围 -1..1，用于画波形 |
 | `rms(pcm): number` | 均方根电平（0..1） |
+| `rmsDb(pcm)` / `peakDb(pcm)` / `linearToDb(v)` | dBFS 电平（静音 -120） |
+| `topPeaks(bands, n): number[]` | 最强的 n 个频带下标（从大到小） |
 | `peak(pcm): number` | 绝对值峰值（0..1） |
 | `runSelfTest(): boolean` | 原生自检（440 Hz 频带、静音、波形范围、电平容差），用于冒烟测试 |
 
