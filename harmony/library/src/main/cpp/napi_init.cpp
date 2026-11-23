@@ -202,6 +202,13 @@ napi_value NativeComputePeak(napi_env env, napi_callback_info info) {
     return MakeNumber(env, audiodsp::computePeak(samples, length));
 }
 
+napi_value NativeSelfTest(napi_env env, napi_callback_info info) {
+    (void)info;
+    napi_value result = nullptr;
+    napi_get_boolean(env, audiodsp::runSelfTest(), &result);
+    return result;
+}
+
 }  // namespace
 
 EXTERN_C_START
@@ -214,6 +221,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"computeWaveformNative", nullptr, NativeComputeWaveform, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"computeRmsNative", nullptr, NativeComputeRms, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"computePeakNative", nullptr, NativeComputePeak, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"selfTest", nullptr, NativeSelfTest, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

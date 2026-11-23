@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1] - 2026-10-21
+
+### Added
+
+- `runSelfTest()` 原生自检 API，demo 首屏展示结果。
+- demo 工程：合成 440 Hz 音 → 实时频谱条、波形、RMS/峰值、峰值频带，无需麦克风权限。
+- Hypium 设备测试：selfTest、push 契约、归一化、440 Hz 频带、静音、waveform/rms/peak。
+- `scripts/check-release.mjs` + CI：版本一致性、九要素 README、三件套、native 源文件检查。
+
 ## [0.1.0] - 2026-10-21
 
 首个版本：音频分析层（不含解码与播放），已发布至 OHPM 中心仓。

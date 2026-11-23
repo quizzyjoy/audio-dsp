@@ -43,6 +43,40 @@ audio-dsp/
         └── src/main/cpp/    # NAPI + kissfft
 ```
 
+## Demo 工程
+
+`harmony/` 内含一个 demo（`entry` 模块），**用合成音驱动，不需要麦克风权限**：
+
+- 32 条实时频谱（对数频带）
+- 波形包络（96 点）
+- RMS / 峰值 / 峰值频带 / 每秒帧数
+- 频率滑块（110–2000 Hz）+ 暂停 / 重置
+- 首屏显示原生自检结果（`selftest PASS/FAIL`）
+
+运行方式（DevEco Studio）：
+
+1. 打开 `harmony/`
+2. File → Project Structure → Signing Configs → 勾选 **Automatically generate signature**
+3. 选中 `entry` → Run
+
+命令行构建（HAR）：见上文；命令行构建 HAP 需要本机签名配置。
+
+## 测试
+
+| 层 | 位置 | 说明 |
+|---|---|---|
+| 原生自检 | `library/src/main/cpp/audio_dsp.cpp` → `runSelfTest()` | 440 Hz 正弦 → 峰值频带、静音、波形范围、RMS/峰值容差 |
+| 设备测试 | `harmony/entry/src/ohosTest` | Hypium：自检、push 契约、归一化、440 Hz 频带、静音、waveform/rms/peak |
+| 发布一致性 | `scripts/check-release.mjs` | 版本同步、九要素 README、三件套、native 源文件（CI 可跑，无需 SDK） |
+
+```bash
+# 无需 SDK，本地/CI 均可
+node scripts/check-release.mjs
+
+# 设备测试（DevEco 配好签名后）
+hvigorw --mode module -p module=entry@ohosTest -p product=default test
+```
+
 ## 构建
 
 ```bash

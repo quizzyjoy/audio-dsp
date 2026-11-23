@@ -1,0 +1,15 @@
+{
+  "name": "entry",
+  "version": "0.1.1",
+  "description": "audio-dsp demo: real-time spectrum bars, waveform and level metering from a synthetic tone (no microphone needed).",
+  "main": "",
+  "author": {
+    "name": "河南趣知易解互联网科技有限公司",
+    "email": "opensource@quizzyjoy.com",
+    "url": "https://quizzyjoy.com"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@quizzyjoy/audio-dsp": "file:../library"
+  }
+}

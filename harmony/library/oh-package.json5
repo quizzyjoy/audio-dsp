@@ -1,6 +1,6 @@
 {
   "name": "@quizzyjoy/audio-dsp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Real-time audio DSP for HarmonyOS: FFT spectrum, waveform envelope, RMS/peak. Native NAPI, no decoding or playback.",
   "main": "Index.ets",
   "author": {

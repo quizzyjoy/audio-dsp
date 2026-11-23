@@ -45,6 +45,9 @@ float computeRms(const int16_t* samples, size_t count);
 
 float computePeak(const int16_t* samples, size_t count);
 
+/** Runs the built-in sanity checks (sine 440 Hz, silence, waveform, levels). */
+bool runSelfTest();
+
 }  // namespace audiodsp
 
 #endif  // AUDIO_DSP_H

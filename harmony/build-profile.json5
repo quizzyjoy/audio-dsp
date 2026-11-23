@@ -25,6 +25,18 @@
   },
   "modules": [
     {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
       "name": "library",
       "srcPath": "./library"
     }

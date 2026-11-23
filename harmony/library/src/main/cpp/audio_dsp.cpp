@@ -183,4 +183,70 @@ float computePeak(const int16_t* samples, size_t count) {
     return static_cast<float>(peak) / 32768.0f;
 }
 
+bool runSelfTest() {
+    constexpr int kFft = 1024;
+    constexpr int kBands = 32;
+    constexpr int kSampleRate = 48000;
+
+    SpectrumAnalyzer analyzer(kFft, kSampleRate, kBands);
+    std::vector<int16_t> sine(static_cast<size_t>(kFft));
+    const double step = 2.0 * M_PI * 440.0 / static_cast<double>(kSampleRate);
+    for (int i = 0; i < kFft; ++i) {
+        sine[static_cast<size_t>(i)] = static_cast<int16_t>(std::lround(std::sin(step * i) * 20000.0));
+    }
+
+    std::vector<float> bands(static_cast<size_t>(kBands), 0.0f);
+    int produced = 0;
+    for (int k = 0; k < 4; ++k) {
+        produced = analyzer.push(sine.data(), sine.size(), bands.data());
+    }
+    if (produced != kBands) {
+        return false;
+    }
+
+    int peakBand = 0;
+    for (int i = 1; i < kBands; ++i) {
+        if (bands[static_cast<size_t>(i)] > bands[static_cast<size_t>(peakBand)]) {
+            peakBand = i;
+        }
+    }
+    if (peakBand < 8 || peakBand > 15) {
+        return false;
+    }
+    for (float v : bands) {
+        if (v < 0.0f || v > 1.0001f) {
+            return false;
+        }
+    }
+
+    analyzer.reset();
+    std::vector<int16_t> silence(static_cast<size_t>(kFft), 0);
+    for (int k = 0; k < 4; ++k) {
+        analyzer.push(silence.data(), silence.size(), bands.data());
+    }
+    for (float v : bands) {
+        if (v > 0.05f) {
+            return false;
+        }
+    }
+
+    std::vector<float> wave(200, 0.0f);
+    computeWaveform(sine.data(), sine.size(), 100, wave.data());
+    for (float v : wave) {
+        if (v < -1.01f || v > 1.01f) {
+            return false;
+        }
+    }
+
+    const float rmsValue = computeRms(sine.data(), sine.size());
+    if (std::fabs(rmsValue - 0.4316f) > 0.03f) {
+        return false;
+    }
+    const float peakValue = computePeak(sine.data(), sine.size());
+    if (std::fabs(peakValue - 0.6104f) > 0.03f) {
+        return false;
+    }
+    return true;
+}
+
 }  // namespace audiodsp
