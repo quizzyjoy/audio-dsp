@@ -243,6 +243,209 @@ napi_value NativeSelfTest(napi_env env, napi_callback_info info) {
     return result;
 }
 
+void FinalizeLoudness(napi_env /*env*/, void* data, void* /*hint*/) {
+    delete static_cast<audiodsp::LoudnessMeter*>(data);
+}
+
+void FinalizeTempo(napi_env /*env*/, void* data, void* /*hint*/) {
+    delete static_cast<audiodsp::TempoEstimator*>(data);
+}
+
+audiodsp::LoudnessMeter* UnwrapLoudness(napi_env env, napi_value value) {
+    void* data = nullptr;
+    if (napi_get_value_external(env, value, &data) != napi_ok) {
+        return nullptr;
+    }
+    return static_cast<audiodsp::LoudnessMeter*>(data);
+}
+
+audiodsp::TempoEstimator* UnwrapTempo(napi_env env, napi_value value) {
+    void* data = nullptr;
+    if (napi_get_value_external(env, value, &data) != napi_ok) {
+        return nullptr;
+    }
+    return static_cast<audiodsp::TempoEstimator*>(data);
+}
+
+napi_value NativeCreateLoudness(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int32_t sampleRate = 48000;
+    if (argc > 0) {
+        napi_get_value_int32(env, args[0], &sampleRate);
+    }
+
+    auto* meter = new audiodsp::LoudnessMeter(sampleRate);
+    napi_value external = nullptr;
+    if (napi_create_external(env, meter, FinalizeLoudness, nullptr, &external) != napi_ok) {
+        delete meter;
+        napi_value nullValue = nullptr;
+        napi_get_null(env, &nullValue);
+        return nullValue;
+    }
+    return external;
+}
+
+napi_value NativePushLoudness(napi_env env, napi_callback_info info) {
+    size_t argc = 3;
+    napi_value args[3] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    napi_value falseValue = nullptr;
+    napi_get_boolean(env, false, &falseValue);
+    if (argc < 3) {
+        return falseValue;
+    }
+
+    audiodsp::LoudnessMeter* meter = UnwrapLoudness(env, args[0]);
+    if (meter == nullptr) {
+        return falseValue;
+    }
+
+    const int16_t* samples = nullptr;
+    size_t length = 0;
+    if (!GetInt16Array(env, args[1], &samples, &length)) {
+        return falseValue;
+    }
+
+    float out[3] = {-120.0f, -120.0f, -120.0f};
+    const bool produced = meter->push(samples, length, out);
+
+    napi_typedarray_type type;
+    napi_value arrayBuffer = nullptr;
+    void* raw = nullptr;
+    size_t byteOffset = 0;
+    size_t outLength = 0;
+    if (napi_get_typedarray_info(env, args[2], &type, &outLength, &raw, &arrayBuffer, &byteOffset) == napi_ok &&
+        type == napi_float32_array && raw != nullptr && outLength >= 3) {
+        auto* target = static_cast<float*>(raw);
+        target[0] = out[0];
+        target[1] = out[1];
+        target[2] = out[2];
+    }
+
+    napi_value result = nullptr;
+    napi_get_boolean(env, produced, &result);
+    return result;
+}
+
+napi_value NativeResetLoudness(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc >= 1) {
+        audiodsp::LoudnessMeter* meter = UnwrapLoudness(env, args[0]);
+        if (meter != nullptr) {
+            meter->reset();
+        }
+    }
+    napi_value undefined = nullptr;
+    napi_get_undefined(env, &undefined);
+    return undefined;
+}
+
+napi_value NativeDestroyLoudness(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc >= 1) {
+        delete UnwrapLoudness(env, args[0]);
+    }
+    napi_value undefined = nullptr;
+    napi_get_undefined(env, &undefined);
+    return undefined;
+}
+
+napi_value NativeCreateTempo(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    double frameIntervalMs = 10.0;
+    if (argc > 0) {
+        napi_get_value_double(env, args[0], &frameIntervalMs);
+    }
+
+    auto* tempo = new audiodsp::TempoEstimator(frameIntervalMs);
+    napi_value external = nullptr;
+    if (napi_create_external(env, tempo, FinalizeTempo, nullptr, &external) != napi_ok) {
+        delete tempo;
+        napi_value nullValue = nullptr;
+        napi_get_null(env, &nullValue);
+        return nullValue;
+    }
+    return external;
+}
+
+napi_value NativePushTempo(napi_env env, napi_callback_info info) {
+    size_t argc = 3;
+    napi_value args[3] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    napi_value falseValue = nullptr;
+    napi_get_boolean(env, false, &falseValue);
+    if (argc < 3) {
+        return falseValue;
+    }
+
+    audiodsp::TempoEstimator* tempo = UnwrapTempo(env, args[0]);
+    if (tempo == nullptr) {
+        return falseValue;
+    }
+
+    double energy = 0.0;
+    napi_get_value_double(env, args[1], &energy);
+
+    float out[3] = {0.0f, 0.0f, 0.0f};
+    tempo->push(static_cast<float>(energy), out);
+
+    napi_typedarray_type type;
+    napi_value arrayBuffer = nullptr;
+    void* raw = nullptr;
+    size_t byteOffset = 0;
+    size_t outLength = 0;
+    if (napi_get_typedarray_info(env, args[2], &type, &outLength, &raw, &arrayBuffer, &byteOffset) == napi_ok &&
+        type == napi_float32_array && raw != nullptr && outLength >= 3) {
+        auto* target = static_cast<float*>(raw);
+        target[0] = out[0];
+        target[1] = out[1];
+        target[2] = out[2];
+    }
+
+    napi_value result = nullptr;
+    napi_get_boolean(env, true, &result);
+    return result;
+}
+
+napi_value NativeResetTempo(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc >= 1) {
+        audiodsp::TempoEstimator* tempo = UnwrapTempo(env, args[0]);
+        if (tempo != nullptr) {
+            tempo->reset();
+        }
+    }
+    napi_value undefined = nullptr;
+    napi_get_undefined(env, &undefined);
+    return undefined;
+}
+
+napi_value NativeDestroyTempo(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc >= 1) {
+        delete UnwrapTempo(env, args[0]);
+    }
+    napi_value undefined = nullptr;
+    napi_get_undefined(env, &undefined);
+    return undefined;
+}
+
 }  // namespace
 
 EXTERN_C_START
@@ -256,6 +459,14 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"computeRmsNative", nullptr, NativeComputeRms, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"computePeakNative", nullptr, NativeComputePeak, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"selfTest", nullptr, NativeSelfTest, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"createLoudnessMeter", nullptr, NativeCreateLoudness, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"pushLoudness", nullptr, NativePushLoudness, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"resetLoudness", nullptr, NativeResetLoudness, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"destroyLoudness", nullptr, NativeDestroyLoudness, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"createTempoEstimator", nullptr, NativeCreateTempo, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"pushTempo", nullptr, NativePushTempo, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"resetTempo", nullptr, NativeResetTempo, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"destroyTempo", nullptr, NativeDestroyTempo, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

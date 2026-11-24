@@ -111,7 +111,7 @@ ohpm publish  harmony/library/build/default/outputs/default/library.har
 |---|---|
 | 0.1 ✅ | FFT 频谱、波形包络、RMS/峰值 |
 | 0.2 ✅ | 频带拆分（bass/mid/treble）、topPeaks、50% 重叠、dB 电平 |
-| 0.3 | onset / BPM、LUFS 响度 |
+| 0.3 ✅ | onset / BPM、LUFS 响度（BS.1770-4 风格） |
 | 0.4 | 重采样、变速不变调（自研 WSOLA，避开 LGPL） |
 
 ## 贡献

@@ -3,6 +3,15 @@
 All notable changes are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: [SemVer](https://semver.org/).
 
+## [0.3.0] - 2026-10-21
+
+### Added
+
+- `LoudnessMeter`：ITU-R BS.1770-4 风格响度（K 加权、400 ms 块、75% 重叠、门限积分），输出 momentary / shortTerm / integrated LUFS。
+- `TempoEstimator`：基于帧能量的 onset 检测与 BPM 估计（中位间隔 + 一致性置信度）。
+- demo：LUFS-I / LUFS-M / BPM 读数，新增「节拍模式」（500 ms 一次的点击包络）。
+- Hypium 新增 4 个用例（-20 dBFS → -20 LUFS、静音、120 BPM 点击轨、reset）。
+
 ## [0.2.0] - 2026-10-21
 
 ### Added

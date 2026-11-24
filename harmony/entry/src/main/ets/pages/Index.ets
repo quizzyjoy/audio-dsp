@@ -1,4 +1,12 @@
-import { SpectrumAnalyzer, computeWaveform, rms, peak, runSelfTest } from '@quizzyjoy/audio-dsp';
+import {
+  SpectrumAnalyzer,
+  LoudnessMeter,
+  TempoEstimator,
+  computeWaveform,
+  rms,
+  peak,
+  runSelfTest
+} from '@quizzyjoy/audio-dsp';
 
 const SAMPLE_RATE: number = 48000;
 const CHUNK_SIZE: number = 960;   // 20 ms @ 48 kHz
@@ -23,6 +31,11 @@ struct Index {
   @State mid: number = 0;
   @State treble: number = 0;
   @State overlap: boolean = false;
+  @State clickMode: boolean = false;
+  @State lufsIntegrated: string = '-120.0';
+  @State lufsMomentary: string = '-120.0';
+  @State bpmText: string = '-';
+  @State beatFlash: boolean = false;
 
   private analyzer: SpectrumAnalyzer = new SpectrumAnalyzer({
     fftSize: FFT_SIZE,
@@ -32,8 +45,11 @@ struct Index {
   private timerId: number = -1;
   private phase: number = 0;
   private frames: number = 0;
+  private frameIndex: number = 0;
   private lastFrames: number = 0;
   private lastTick: number = 0;
+  private loudness: LoudnessMeter = new LoudnessMeter(SAMPLE_RATE);
+  private tempo: TempoEstimator = new TempoEstimator(TICK_MS);
 
   aboutToAppear(): void {
     const zeros: number[] = [];
@@ -56,6 +72,8 @@ struct Index {
   aboutToDisappear(): void {
     this.stop();
     this.analyzer.release();
+    this.loudness.release();
+    this.tempo.release();
   }
 
   private start(): void {
@@ -84,11 +102,17 @@ struct Index {
 
     const pcm = new Int16Array(CHUNK_SIZE);
     const step = (2 * Math.PI * this.frequency) / SAMPLE_RATE;
+    // click mode: a sharp attack every ~500 ms so the tempo estimator has onsets
+    let gain: number = 1.0;
+    if (this.clickMode) {
+      gain = this.frameIndex % 15 === 0 ? 1.0 : 0.15;
+    }
+    this.frameIndex++;
     for (let i = 0; i < CHUNK_SIZE; i++) {
       const s = Math.sin(this.phase) * 0.55
         + Math.sin(this.phase * 2) * 0.18
         + Math.sin(this.phase * 3) * 0.08;
-      pcm[i] = Math.round(s * 18000);
+      pcm[i] = Math.round(s * 18000 * gain);
       this.phase += step;
       if (this.phase > Math.PI * 2) {
         this.phase -= Math.PI * 2;
@@ -128,6 +152,18 @@ struct Index {
 
     this.rmsText = rms(pcm).toFixed(3);
     this.peakText = peak(pcm).toFixed(3);
+
+    const lufs = this.loudness.push(pcm);
+    this.lufsIntegrated = lufs.integrated.toFixed(1);
+    this.lufsMomentary = lufs.momentary.toFixed(1);
+
+    const beat = this.tempo.push(rms(pcm));
+    if (beat.bpm > 0) {
+      this.bpmText = `${Math.round(beat.bpm)} (${Math.round(beat.confidence * 100)}%)`;
+    }
+    if (beat.onset) {
+      this.beatFlash = !this.beatFlash;
+    }
 
     const now = Date.now();
     if (now - this.lastTick >= 1000) {
@@ -218,6 +254,14 @@ struct Index {
       .width('100%')
       .margin({ top: 14, bottom: 8 })
 
+      Row({ space: 24 }) {
+        Readout({ label: 'LUFS-I', value: this.lufsIntegrated })
+        Readout({ label: 'LUFS-M', value: this.lufsMomentary })
+        Readout({ label: 'BPM', value: this.bpmText })
+      }
+      .width('100%')
+      .margin({ bottom: 8 })
+
       Row({ space: 12 }) {
         Meter({ label: 'BASS', value: this.bass, color: '#F472B6' })
         Meter({ label: 'MID', value: this.mid, color: '#60A5FA' })
@@ -260,6 +304,16 @@ struct Index {
           .onChange((isOn: boolean) => {
             this.overlap = isOn;
             this.rebuildAnalyzer();
+          })
+        Blank()
+        Text('节拍模式')
+          .fontSize(13)
+          .fontColor('#CBD5E1')
+        Toggle({ type: ToggleType.Switch, isOn: this.clickMode })
+          .onChange((isOn: boolean) => {
+            this.clickMode = isOn;
+            this.tempo.reset();
+            this.loudness.reset();
           })
       }
       .width('100%')

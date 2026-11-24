@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2026-10-21
+
+### Added
+
+- `LoudnessMeter`（BS.1770-4 风格 LUFS：momentary / short-term / integrated）。
+- `TempoEstimator`（onset + BPM + 置信度）。
+- demo：LUFS/BPM 读数与节拍模式。
+- Hypium 增至 16 个用例。
+
 ## [0.2.0] - 2026-10-21
 
 ### Added

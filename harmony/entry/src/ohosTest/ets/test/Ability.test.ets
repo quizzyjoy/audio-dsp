@@ -6,7 +6,9 @@ import {
   peak,
   rmsDb,
   topPeaks,
-  runSelfTest
+  runSelfTest,
+  LoudnessMeter,
+  TempoEstimator
 } from '@quizzyjoy/audio-dsp';
 
 const SAMPLE_RATE: number = 48000;
@@ -189,6 +191,55 @@ export default function audioDspTest() {
       expect(frame![peaks[0]] >= frame![peaks[1]]).assertTrue();
       expect(frame![peaks[1]] >= frame![peaks[2]]).assertTrue();
       analyzer.release();
+    });
+  });
+
+  describe('Loudness (LUFS) and tempo (0.3)', () => {
+    it('-20_dbfs_sine_reads_about_minus_20_lufs', 0, () => {
+      const meter = new LoudnessMeter(SAMPLE_RATE);
+      const chunk = sine(1000, 4800, 3277);
+      let lufs = meter.push(chunk);
+      for (let i = 0; i < 40; i++) {
+        lufs = meter.push(chunk);
+      }
+      expect(Math.abs(lufs.integrated + 20) < 1.5).assertTrue();
+      expect(Math.abs(lufs.momentary + 20) < 1.5).assertTrue();
+      meter.release();
+    });
+
+    it('silence_reads_floor', 0, () => {
+      const meter = new LoudnessMeter(SAMPLE_RATE);
+      let lufs = meter.push(silence(4800));
+      for (let i = 0; i < 10; i++) {
+        lufs = meter.push(silence(4800));
+      }
+      expect(lufs.integrated <= -70).assertTrue();
+      meter.release();
+    });
+
+    it('click_track_at_500ms_reads_120_bpm', 0, () => {
+      const tempo = new TempoEstimator(10);
+      let readout = tempo.push(0.05);
+      for (let frame = 0; frame < 500; frame++) {
+        const energy = frame % 50 === 0 ? 0.8 : 0.05;
+        readout = tempo.push(energy);
+      }
+      expect(readout.bpm > 110).assertTrue();
+      expect(readout.bpm < 130).assertTrue();
+      expect(readout.confidence > 0.2).assertTrue();
+      tempo.release();
+    });
+
+    it('reset_clears_tempo', 0, () => {
+      const tempo = new TempoEstimator(10);
+      for (let frame = 0; frame < 200; frame++) {
+        tempo.push(frame % 50 === 0 ? 0.8 : 0.05);
+      }
+      tempo.reset();
+      const readout = tempo.push(0.05);
+      expect(readout.bpm).assertEqual(0);
+      expect(readout.confidence).assertEqual(0);
+      tempo.release();
     });
   });
 }

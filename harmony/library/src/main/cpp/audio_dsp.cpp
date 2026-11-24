@@ -16,6 +16,9 @@ double bandEdge(int fftSize, int sampleRate, int bands, int index) {
                                   std::min(kMaxBandHz, static_cast<double>(sampleRate) / 2.0));
     return kMinBandHz * std::pow(maxHz / kMinBandHz, static_cast<double>(index) / bands);
 }
+
+bool selfTestLoudness();
+bool selfTestTempo();
 }  // namespace
 
 SpectrumAnalyzer::SpectrumAnalyzer(int fftSize, int sampleRate, int bands, int overlapPercent, double bassHz,
@@ -309,7 +312,277 @@ bool runSelfTest() {
     if (std::fabs(peakValue - 0.6104f) > 0.03f) {
         return false;
     }
+    if (!selfTestLoudness()) {
+        return false;
+    }
+    if (!selfTestTempo()) {
+        return false;
+    }
     return true;
 }
+
+LoudnessMeter::LoudnessMeter(int sampleRate) : sampleRate_(sampleRate) {
+    if (sampleRate_ <= 0) {
+        sampleRate_ = 48000;
+    }
+
+    if (sampleRate_ == 44100) {
+        b0s_ = 1.53084123005095; b1s_ = -2.65097999515473; b2s_ = 1.16907907992159;
+        a1s_ = -1.66365511325602; a2s_ = 0.712595428073225;
+        b0h_ = 1.0; b1h_ = -2.0; b2h_ = 1.0;
+        a1h_ = -1.98916967362980; a2h_ = 0.989199035787039;
+    } else {
+        b0s_ = 1.53512485958697; b1s_ = -2.69169618940638; b2s_ = 1.19839281085285;
+        a1s_ = -1.69065929318241; a2s_ = 0.73248077421585;
+        b0h_ = 1.0; b1h_ = -2.0; b2h_ = 1.0;
+        a1h_ = -1.99004745483398; a2h_ = 0.99007225036621;
+    }
+
+    blockTarget_ = static_cast<size_t>(std::lround(0.4 * sampleRate_));
+    stepTarget_ = static_cast<size_t>(std::lround(0.1 * sampleRate_));
+    ring_.assign(blockTarget_, 0.0);
+}
+
+LoudnessMeter::~LoudnessMeter() = default;
+
+void LoudnessMeter::reset() {
+    sx1_ = sx2_ = sy1_ = sy2_ = 0.0;
+    hx1_ = hx2_ = hy1_ = hy2_ = 0.0;
+    std::fill(ring_.begin(), ring_.end(), 0.0);
+    ringPos_ = 0;
+    ringCount_ = 0;
+    ringSum_ = 0.0;
+    sinceBlock_ = 0;
+    blockLufs_.clear();
+    momentary_ = -120.0f;
+    shortTerm_ = -120.0f;
+    integrated_ = -120.0f;
+}
+
+double LoudnessMeter::computeBlockLufs() const {
+    const double meanSquare = ringSum_ / static_cast<double>(blockTarget_);
+    if (meanSquare <= 1e-12) {
+        return -120.0;
+    }
+    return -0.691 + 10.0 * std::log10(meanSquare);
+}
+
+bool LoudnessMeter::push(const int16_t* samples, size_t count, float* out) {
+    if (samples == nullptr || count == 0 || blockTarget_ == 0) {
+        return false;
+    }
+
+    bool produced = false;
+    for (size_t i = 0; i < count; ++i) {
+        const double x = static_cast<double>(samples[i]) / 32768.0;
+
+        const double shelf = b0s_ * x + b1s_ * sx1_ + b2s_ * sx2_ - a1s_ * sy1_ - a2s_ * sy2_;
+        sx2_ = sx1_;
+        sx1_ = x;
+        sy2_ = sy1_;
+        sy1_ = shelf;
+
+        const double y = b0h_ * shelf + b1h_ * hx1_ + b2h_ * hx2_ - a1h_ * hy1_ - a2h_ * hy2_;
+        hx2_ = hx1_;
+        hx1_ = shelf;
+        hy2_ = hy1_;
+        hy1_ = y;
+
+        const double squared = y * y;
+        if (ringCount_ < blockTarget_) {
+            ringSum_ += squared;
+            ring_[ringPos_] = squared;
+            ringPos_ = (ringPos_ + 1) % blockTarget_;
+            ++ringCount_;
+        } else {
+            ringSum_ += squared - ring_[ringPos_];
+            ring_[ringPos_] = squared;
+            ringPos_ = (ringPos_ + 1) % blockTarget_;
+        }
+
+        ++sinceBlock_;
+        if (ringCount_ == blockTarget_ && sinceBlock_ >= stepTarget_) {
+            sinceBlock_ = 0;
+            const double blockLufs = computeBlockLufs();
+            blockLufs_.push_back(blockLufs);
+            if (blockLufs_.size() > 3600) {
+                blockLufs_.erase(blockLufs_.begin());
+            }
+            momentary_ = static_cast<float>(blockLufs);
+
+            const size_t shortCount = std::min<size_t>(30, blockLufs_.size());
+            double shortSum = 0.0;
+            for (size_t k = blockLufs_.size() - shortCount; k < blockLufs_.size(); ++k) {
+                shortSum += blockLufs_[k];
+            }
+            shortTerm_ = static_cast<float>(-0.691 + 10.0 * std::log10(shortSum / static_cast<double>(shortCount)));
+
+            const double absGate = std::pow(10.0, (-70.0 + 0.691) / 10.0);
+            double sumAbs = 0.0;
+            int countAbs = 0;
+            for (double value : blockLufs_) {
+                if (value > absGate) {
+                    sumAbs += value;
+                    ++countAbs;
+                }
+            }
+
+            if (countAbs == 0) {
+                integrated_ = -120.0f;
+            } else {
+                const double meanAbs = sumAbs / static_cast<double>(countAbs);
+                const double relLufs = -0.691 + 10.0 * std::log10(meanAbs);
+                const double relGate = std::pow(10.0, (relLufs - 10.0 + 0.691) / 10.0);
+                double sum = 0.0;
+                int count = 0;
+                for (double value : blockLufs_) {
+                    if (value > absGate && value > relGate) {
+                        sum += value;
+                        ++count;
+                    }
+                }
+                integrated_ = count > 0
+                    ? static_cast<float>(-0.691 + 10.0 * std::log10(sum / static_cast<double>(count)))
+                    : -120.0f;
+            }
+            produced = true;
+        }
+    }
+
+    if (out != nullptr) {
+        out[0] = momentary_;
+        out[1] = shortTerm_;
+        out[2] = integrated_;
+    }
+    return produced;
+}
+
+TempoEstimator::TempoEstimator(double frameIntervalMs) : frameIntervalMs_(frameIntervalMs) {
+    if (frameIntervalMs_ <= 0.0) {
+        frameIntervalMs_ = 10.0;
+    }
+    history_.reserve(64);
+}
+
+void TempoEstimator::reset() {
+    nowMs_ = 0.0;
+    lastOnsetMs_ = -10000.0;
+    previousEnergy_ = 0.0f;
+    history_.clear();
+    intervals_.clear();
+    bpm_ = 0.0f;
+    confidence_ = 0.0f;
+}
+
+bool TempoEstimator::push(float energy, float* out) {
+    nowMs_ += frameIntervalMs_;
+
+    const float flux = energy - previousEnergy_;
+    previousEnergy_ = energy;
+
+    history_.push_back(energy);
+    if (history_.size() > 64) {
+        history_.erase(history_.begin());
+    }
+
+    double mean = 0.0;
+    for (float value : history_) {
+        mean += value;
+    }
+    mean /= static_cast<double>(history_.size());
+
+    double variance = 0.0;
+    for (float value : history_) {
+        const double delta = value - mean;
+        variance += delta * delta;
+    }
+    variance /= static_cast<double>(history_.size());
+    const double deviation = std::sqrt(variance);
+
+    const bool loudEnough = energy > 0.03f;
+    const bool aboveThreshold = flux > static_cast<float>(mean + 0.6 * deviation + 0.005);
+    const bool separated = (nowMs_ - lastOnsetMs_) > 120.0;
+
+    bool onset = false;
+    if (loudEnough && aboveThreshold && separated) {
+        onset = true;
+        const double interval = nowMs_ - lastOnsetMs_;
+        if (interval >= 150.0 && interval <= 2000.0) {
+            double folded = interval;
+            while (folded < 250.0) {
+                folded *= 2.0;
+            }
+            while (folded > 1000.0) {
+                folded /= 2.0;
+            }
+            intervals_.push_back(folded);
+            if (intervals_.size() > 32) {
+                intervals_.erase(intervals_.begin());
+            }
+        }
+        lastOnsetMs_ = nowMs_;
+    }
+
+    if (!intervals_.empty()) {
+        std::vector<double> sorted = intervals_;
+        std::sort(sorted.begin(), sorted.end());
+        const double median = sorted[sorted.size() / 2];
+        bpm_ = static_cast<float>(60000.0 / median);
+
+        double meanInterval = 0.0;
+        for (double value : intervals_) {
+            meanInterval += value;
+        }
+        meanInterval /= static_cast<double>(intervals_.size());
+        double intervalVariance = 0.0;
+        for (double value : intervals_) {
+            const double delta = value - meanInterval;
+            intervalVariance += delta * delta;
+        }
+        intervalVariance /= static_cast<double>(intervals_.size());
+        const double spread = meanInterval > 1.0 ? std::sqrt(intervalVariance) / meanInterval : 1.0;
+        const double consistency = std::max(0.0, 1.0 - spread);
+        const double sampleFactor = std::min(1.0, static_cast<double>(intervals_.size()) / 8.0);
+        confidence_ = static_cast<float>(consistency * sampleFactor);
+    }
+
+    if (out != nullptr) {
+        out[0] = bpm_;
+        out[1] = confidence_;
+        out[2] = onset ? 1.0f : 0.0f;
+    }
+    return true;
+}
+
+namespace {
+bool selfTestLoudness() {
+    constexpr int kSampleRate = 48000;
+    LoudnessMeter meter(kSampleRate);
+
+    std::vector<int16_t> chunk(4800);
+    const double step = 2.0 * M_PI * 1000.0 / static_cast<double>(kSampleRate);
+    int globalIndex = 0;
+    float out[3] = {0.0f, 0.0f, 0.0f};
+    for (int block = 0; block < 40; ++block) {
+        for (size_t i = 0; i < chunk.size(); ++i) {
+            chunk[i] = static_cast<int16_t>(std::lround(std::sin(step * globalIndex) * 3277.0));
+            ++globalIndex;
+        }
+        meter.push(chunk.data(), chunk.size(), out);
+    }
+    // a 1 kHz sine at -20 dBFS should read about -20 LUFS
+    return std::fabs(out[2] + 20.0f) < 1.5f;
+}
+
+bool selfTestTempo() {
+    TempoEstimator tempo(10.0);
+    float out[3] = {0.0f, 0.0f, 0.0f};
+    for (int frame = 0; frame < 500; ++frame) {
+        const float energy = (frame % 50 == 0) ? 0.8f : 0.05f;
+        tempo.push(energy, out);
+    }
+    return out[0] > 110.0f && out[0] < 130.0f && out[1] > 0.2f;
+}
+}  // namespace
 
 }  // namespace audiodsp

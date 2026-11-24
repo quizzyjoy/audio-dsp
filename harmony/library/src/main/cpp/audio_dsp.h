@@ -70,6 +70,72 @@ float computePeak(const int16_t* samples, size_t count);
 /** Runs the built-in sanity checks (sine 440 Hz, silence, waveform, levels). */
 bool runSelfTest();
 
+/**
+ * ITU-R BS.1770-4 style loudness meter (K-weighting + 400 ms gating).
+ * Mono input; 400 ms blocks with 75% overlap.
+ */
+class LoudnessMeter {
+public:
+    explicit LoudnessMeter(int sampleRate);
+    ~LoudnessMeter();
+
+    /**
+     * @param out receives 3 floats: momentary (400 ms), short-term (3 s), integrated (gated)
+     * @return true when a new 400 ms block was completed
+     */
+    bool push(const int16_t* samples, size_t count, float* out);
+
+    void reset();
+
+private:
+    double computeBlockLufs() const;
+
+    int sampleRate_ = 48000;
+    double b0s_ = 1.0, b1s_ = 0.0, b2s_ = 0.0, a1s_ = 0.0, a2s_ = 0.0;
+    double b0h_ = 1.0, b1h_ = 0.0, b2h_ = 0.0, a1h_ = 0.0, a2h_ = 0.0;
+
+    double sx1_ = 0, sx2_ = 0, sy1_ = 0, sy2_ = 0;
+    double hx1_ = 0, hx2_ = 0, hy1_ = 0, hy2_ = 0;
+
+    std::vector<double> ring_;
+    size_t ringPos_ = 0;
+    size_t ringCount_ = 0;
+    double ringSum_ = 0.0;
+    size_t blockTarget_ = 0;
+    size_t stepTarget_ = 0;
+    size_t sinceBlock_ = 0;
+
+    std::vector<double> blockLufs_;
+    float momentary_ = -120.0f;
+    float shortTerm_ = -120.0f;
+    float integrated_ = -120.0f;
+};
+
+/** Onset + BPM estimator fed with per-frame energy. */
+class TempoEstimator {
+public:
+    explicit TempoEstimator(double frameIntervalMs);
+
+    /**
+     * @param energy frame energy (0..1)
+     * @param out receives 3 floats: bpm, confidence (0..1), onset (0 or 1)
+     * @return true when out was updated
+     */
+    bool push(float energy, float* out);
+
+    void reset();
+
+private:
+    double frameIntervalMs_ = 10.0;
+    double nowMs_ = 0.0;
+    double lastOnsetMs_ = -10000.0;
+    float previousEnergy_ = 0.0f;
+    std::vector<float> history_;
+    std::vector<double> intervals_;
+    float bpm_ = 0.0f;
+    float confidence_ = 0.0f;
+};
+
 }  // namespace audiodsp
 
 #endif  // AUDIO_DSP_H

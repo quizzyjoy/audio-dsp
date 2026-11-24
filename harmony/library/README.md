@@ -26,6 +26,22 @@ ohpm install @quizzyjoy/audio-dsp
 | `release(): void` | 释放 native 资源 |
 | `bands: number` | 每帧频带数 |
 
+### LoudnessMeter（0.3）
+
+| 成员 | 说明 |
+|---|---|
+| `constructor(sampleRate?: number)` | 默认 48000；支持 44100/48000 的 K 加权系数 |
+| `push(pcm: Int16Array): LoudnessReadout` | 返回 `{ momentary, shortTerm, integrated }`（LUFS，静音 -120） |
+| `reset()` / `release()` | 清空积分 / 释放 native |
+
+### TempoEstimator（0.3）
+
+| 成员 | 说明 |
+|---|---|
+| `constructor(frameIntervalMs?: number)` | 你喂帧的间隔（毫秒），默认 10 |
+| `push(energy: number): TempoReadout` | 返回 `{ bpm, confidence, onset }`；至少两次 onset 后 bpm 才有效 |
+| `reset()` / `release()` | 同上 |
+
 ### 工具函数
 
 | 函数 | 说明 |
